@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="theme-color" content="#f8fafc" />
+  <title>IDzurag — AI цээж зураг</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"DM Serif Display"', 'Georgia', 'serif'],
+            body:    ['"DM Sans"', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    /* == Base == */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      min-height: 100dvh;
+    }
+
+    /* == Subtle dot grid background == */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+      background-size: 24px 24px;
+      opacity: 0.45;
+    }
+
+    /* == Upload zone == */
+    #upload-zone {
+      border: 2px dashed #cbd5e1;
+      transition: border-color 0.2s, background 0.2s;
+      cursor: pointer;
+    }
+    #upload-zone:hover,
+    #upload-zone.drag-over {
+      border-color: #0f172a;
+      background: #f8fafc;
+    }
+    #file-input { display: none; }
+
+    /* == Custom select == */
+    .custom-select {
+      appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230f172a' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      background-color: #fff;
+    }
+    .custom-select:focus { outline: none; border-color: #0f172a; box-shadow: 0 0 0 3px rgba(15,23,42,0.08); }
+    .custom-select option { background: #fff; color: #0f172a; }
+
+    /* == Text input == */
+    .clean-input {
+      background: #fff;
+      border: 1.5px solid #e2e8f0;
+      color: #0f172a;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .clean-input::placeholder { color: #94a3b8; }
+    .clean-input:focus { outline: none; border-color: #0f172a; box-shadow: 0 0 0 3px rgba(15,23,42,0.08); }
+
+    /* == Submit button == */
+    .btn-primary {
+      background: #0f172a;
+      color: #fff;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+    .btn-primary:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    .btn-primary:active:not(:disabled) { transform: translateY(0); opacity: 1; }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* == Spinner == */
+    .spinner {
+      width: 44px; height: 44px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #0f172a;
+      border-radius: 50%;
+      animation: doSpin 0.9s linear infinite;
+    }
+    @keyframes doSpin { to { transform: rotate(360deg); } }
+
+    /* == Hidden == */
+    .hidden-section { display: none !important; }
+
+    /* == Fade in == */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.4s ease forwards; }
+
+    /* == Toast == */
+    #toast {
+      position: fixed; bottom: 20px; left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s;
+      opacity: 0; z-index: 9999; pointer-events: none;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    /* == Payment tab == */
+    .pay-tab { transition: all 0.2s; }
+    .pay-tab.active {
+      background: #0f172a; color: #fff;
+      box-shadow: 0 2px 8px rgba(15,23,42,0.18);
+    }
+    .pay-tab:not(.active) { background: #fff; color: #64748b; }
+
+    /* == Copy button == */
+    .copy-btn { transition: background 0.15s; }
+    .copy-btn:hover { background: #f1f5f9; }
+
+    /* == Success state == */
+    @keyframes successPop {
+      0%   { transform: scale(0.6); opacity: 0; }
+      70%  { transform: scale(1.1); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .success-icon { animation: successPop 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+
+    /* == Divider == */
+    .soft-divider { border-color: #f1f5f9; }
+
+    /* == Step number == */
+    .step-num {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: #0f172a; color: #fff;
+      font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* == Watermark overlay == */
+    .watermark-text {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none;
+      font-family: 'DM Serif Display', serif;
+      font-size: 36px; font-weight: 900;
+      color: rgba(15,23,42,0.07);
+      transform: rotate(-35deg);
+      letter-spacing: 0.1em;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    /* == QR pattern (mock) == */
+    .qr-wrap {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 10px;
+    }
+  </style>
+</head>
+
+<body class="relative font-body">
+
+  <!-- =====================================================
+       HEADER
+  ===================================================== -->
+  <header class="relative z-10 bg-white border-b border-slate-100 shadow-sm">
+    <div class="max-w-md mx-auto px-5 py-4 flex items-center justify-between">
+
+      <!-- Logo -->
+      <div>
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-slate-900 flex items-center justify-center flex-shrink-0">
+            <i class="fa-solid fa-id-card text-white text-xs"></i>
+          </div>
+          <span class="font-display text-xl tracking-tight text-slate-900">IDzurag</span>
+        </div>
+        <p class="text-xs text-slate-400 mt-0.5 leading-tight pl-9">AI-аар стандартын шаардлага хангасан цээж зураг</p>
+      </div>
+
+      <!-- Badge -->
+      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200">
+        <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+        <span class="text-xs text-slate-500 font-medium">Онлайн</span>
+      </div>
+    </div>
+  </header>
+
+
+  <!-- =====================================================
+       MAIN
+  ===================================================== -->
+  <main class="relative z-10 max-w-md mx-auto px-4 pt-5 pb-20 space-y-3">
+
+    <!-- ─── Hero line ─── -->
+    <div class="text-center pt-2 pb-1">
+      <h2 class="font-display text-2xl text-slate-900 leading-tight">
+        Цээж зургийг хэдхэн<br /><span class="italic">хоромын дотор</span>
+      </h2>
+      <p class="text-sm text-slate-400 mt-2">Утсаараа дараад, имэйлээрээ аваарай.</p>
+    </div>
+
+
+    <!-- ─────────────────────────────────────────────────
+         FORM CARD
+    ─────────────────────────────────────────────────── -->
+    <div id="form-card" class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+
+      <!-- Progress strip -->
+      <div class="flex">
+        <div class="h-0.5 bg-slate-900 flex-1"></div>
+        <div class="h-0.5 bg-slate-200 flex-1"></div>
+        <div class="h-0.5 bg-slate-200 flex-1"></div>
+      </div>
+
+      <div class="p-5 space-y-5">
+
+        <!-- Step 1: Upload -->
+        <div>
+          <div class="flex items-center gap-2 mb-3">
+            <div class="step-num">1</div>
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-widest">Зураг оруулах</span>
+          </div>
+
+          <!--
+            NO capture attribute — OS shows both Gallery and Camera options natively.
+          -->
+          <div id="upload-zone"
+               role="button" tabindex="0"
+               aria-label="Зураг оруулах"
+               class="rounded-xl p-6 text-center transition-all">
+
+            <!-- Default state -->
+            <div id="upload-default">
+              <div class="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center mx-auto mb-3">
+                <i class="fa-regular fa-image text-slate-400 text-xl"></i>
+              </div>
+              <p class="text-sm font-semibold text-slate-700 mb-1">
+                Урьдчилан авсан зураг оруулах эсвэл шинээр зураг авах
+              </p>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Энд дарж утасныхаа <span class="text-slate-600 font-medium">Галерейгаас</span> зураг сонгох эсвэл
+                <span class="text-slate-600 font-medium">Камераа</span> нээнэ үү.<br />
+                (Зөвхөн .jpg, .jpeg, .png)
+              </p>
+            </div>
+
+            <!-- Thumbnail preview (revealed after selection) -->
+            <div id="upload-preview" class="hidden-section">
+              <div class="relative inline-block">
+                <img id="thumb-img" src="" alt="Сонгосон зураг"
+                     class="w-24 h-24 object-cover rounded-xl mx-auto"
+                     style="border: 2px solid #e2e8f0;" />
+                <button id="remove-btn" type="button"
+                        aria-label="Зургийг устгах"
+                        class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center shadow-md">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+              <div class="mt-2.5">
+                <p id="thumb-name" class="text-xs font-semibold text-slate-700 truncate max-w-[200px] mx-auto"></p>
+                <p id="thumb-size" class="text-xs text-slate-400 mt-0.5"></p>
+                <div class="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100">
+                  <i class="fa-solid fa-circle-check text-emerald-500 text-xs"></i>
+                  <span class="text-xs text-emerald-600 font-medium">Зураг амжилттай сонгогдлоо</span>
+                </div>
+              </div>
+            </div>
+
+            <input type="file" id="file-input" name="photo"
+                   accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                   aria-hidden="true" />
+          </div>
+        </div>
+
+        <hr class="soft-divider" />
+
+        <!-- Step 2: Details -->
+        <div>
+          <div class="flex items-center gap-2 mb-4">
+            <div class="step-num">2</div>
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-widest">Мэдээлэл оруулах</span>
+          </div>
+
+          <!-- Email -->
+          <div class="mb-4">
+            <label for="email-input"
+                   class="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">
+              Таны цахим шуудан (Имэйл хаяг)
+            </label>
+            <div class="relative">
+              <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">
+                <i class="fa-regular fa-envelope text-sm"></i>
+              </span>
+              <input type="email" id="email-input" name="email"
+                     placeholder="name@gmail.com"
+                     autocomplete="email" inputmode="email"
+                     class="clean-input w-full pl-10 pr-4 py-3 rounded-xl text-sm" />
+            </div>
+          </div>
+
+          <!-- Photo size -->
+          <div>
+            <label for="size-select"
+                   class="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">
+              Зургийн хэмжээ сонгох
+            </label>
+            <div class="relative">
+              <select id="size-select" name="photoType"
+                      class="custom-select clean-input w-full px-4 py-3 rounded-xl text-sm pr-10">
+                <option value="" disabled selected>— Хэмжээ сонгоно уу —</option>
+                <option value="passport_35x45">Гадаад паспорт (35x45мм) — Стандарт шаардлага хангасан</option>
+                <option value="resume_3x4">Анкет болон ажлын үнэмлэх (3x4см)</option>
+                <option value="student_4x6">Оюутны болон бусад үнэмлэх (4x6см)</option>
+              </select>
+            </div>
+            <!-- Spec badge (updates dynamically) -->
+            <div id="spec-badge" class="hidden-section mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-100">
+              <i class="fa-solid fa-ruler-combined text-slate-400 text-xs"></i>
+              <span id="spec-text" class="text-xs text-slate-500"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <button id="submit-btn" type="button"
+                class="btn-primary w-full py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+          <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
+          Цээж зураг бэлдүүлэх
+        </button>
+
+        <p class="text-center text-xs text-slate-400">
+          <i class="fa-solid fa-lock text-slate-300 mr-1"></i>
+          Таны зураг шифрлэгдэж боловсруулагдана
+        </p>
+      </div>
+    </div>
+
+
+    <!-- ─────────────────────────────────────────────────
+         LOADING OVERLAY
+    ─────────────────────────────────────────────────── -->
+    <div id="loading-overlay"
+         class="hidden-section fixed inset-0 z-50 flex flex-col items-center justify-center"
+         style="background: rgba(248,250,252,0.92); backdrop-filter: blur(8px);"
+         role="status" aria-live="polite" aria-label="Боловсруулж байна">
+
+      <div class="bg-white rounded-2xl shadow-xl border border-slate-100 px-10 py-8 flex flex-col items-center gap-4 max-w-xs w-full mx-4">
+        <div class="spinner"></div>
+        <div class="text-center">
+          <p class="font-semibold text-slate-800 text-sm">Боловсруулж байна…</p>
+          <p id="loading-status" class="text-xs text-slate-400 mt-1 leading-relaxed">
+            AI таны зургийг боловсруулж байна...<br />Түр хүлээнэ үү.
+          </p>
+        </div>
+        <!-- Steps -->
+        <div class="w-full space-y-1.5 pt-1 border-t border-slate-100">
+          <div class="flex items-center gap-2 text-xs text-slate-400">
+            <i class="fa-solid fa-circle-check text-emerald-400 w-3.5"></i>
+            <span>Зураг шифрлэгдэж байна</span>
+          </div>
+          <div class="flex items-center gap-2 text-xs text-slate-400">
+            <i class="fa-solid fa-spinner fa-spin w-3.5 text-slate-400"></i>
+            <span>AI дэвсгэр арилгаж байна</span>
+          </div>
+          <div class="flex items-center gap-2 text-xs text-slate-300">
+            <i class="fa-regular fa-circle w-3.5"></i>
+            <span>Стандарт хэмжээнд тохируулж байна</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ─────────────────────────────────────────────────
+         STEP 3 — PREVIEW & PAYMENT (hidden initially)
+    ─────────────────────────────────────────────────── -->
+    <div id="step3-section" class="hidden-section fade-up space-y-3">
+
+      <!-- Section header -->
+      <div class="flex items-center gap-2 px-1 pt-1">
+        <div class="step-num">3</div>
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-widest">Зураг бэлэн боллоо</span>
+        <div class="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100">
+          <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+          <span class="text-xs text-emerald-600 font-medium">Бэлэн</span>
+        </div>
+      </div>
+
+      <!-- Watermarked Preview -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-slate-50 flex items-center gap-2">
+          <i class="fa-regular fa-image text-slate-400 text-sm"></i>
+          <span class="text-sm font-semibold text-slate-700">Зургийн урьдчилан харах</span>
+        </div>
+        <div class="p-5">
+          <!-- Preview frame -->
+          <div class="relative rounded-xl overflow-hidden flex items-center justify-center bg-slate-50 border border-slate-100"
+               style="min-height: 200px;">
+
+            <!-- Placeholder -->
+            <div id="preview-placeholder" class="flex flex-col items-center py-10 gap-2">
+              <div class="w-16 h-20 rounded-lg bg-slate-100 border border-dashed border-slate-300 flex items-center justify-center">
+                <i class="fa-regular fa-image text-2xl text-slate-300"></i>
+              </div>
+              <p class="text-xs text-slate-400">Боловсруулсан зураг энд харагдана</p>
+            </div>
+
+            <!-- Processed image -->
+            <img id="processed-img" src="" alt="Боловсруулсан зураг"
+                 class="hidden-section w-full h-auto object-contain max-h-64" />
+
+            <!-- Watermark -->
+            <div class="watermark-text" aria-hidden="true">УРЬДЧИЛСАН</div>
+          </div>
+
+          <!-- Note -->
+          <div class="mt-3 flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-100">
+            <i class="fa-solid fa-circle-info text-amber-400 text-xs mt-0.5 flex-shrink-0"></i>
+            <p class="text-xs text-amber-700 leading-relaxed">
+              Төлбөр төлөгдсөний дараа усан хээ арилж, өндөр чанартайгаар таны
+              <strong>имэйл</strong> рүү илгээгдэнэ.
+            </p>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Payment Card -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-slate-50 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-credit-card text-slate-400 text-sm"></i>
+            <span class="text-sm font-semibold text-slate-700">Төлбөр төлөх</span>
+          </div>
+          <!-- Price badge -->
+          <div class="px-3 py-1 rounded-full bg-slate-900 text-white text-xs font-bold">
+            3,699 ₮
+          </div>
+        </div>
+
+        <div class="p-5">
+
+          <!-- Payment method tabs -->
+          <div class="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">
+            <button id="tab-qr" type="button"
+                    class="pay-tab active flex-1 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-qrcode text-xs"></i>
+              QR кодоор
+            </button>
+            <button id="tab-bank" type="button"
+                    class="pay-tab flex-1 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-building-columns text-xs"></i>
+              Дансаар
+            </button>
+          </div>
+
+          <!-- QR Panel -->
+          <div id="panel-qr">
+            <p class="text-xs text-slate-500 text-center mb-4 leading-relaxed">
+              Доорх QR кодыг банкны аппликейшнаараа уншуулан төлбөрөө төлнө үү.
+            </p>
+
+            <!-- QR code -->
+            <div class="flex justify-center mb-3">
+              <div class="qr-wrap shadow-sm">
+                <div id="qr-img-wrap">
+                  <!-- Mock QR SVG -->
+                  <svg viewBox="0 0 100 100" width="156" height="156" xmlns="http://www.w3.org/2000/svg" aria-label="QPay QR код">
+                    <rect width="100" height="100" fill="white"/>
+                    <!-- Corners -->
+                    <rect x="5" y="5" width="26" height="26" rx="3" fill="none" stroke="#0f172a" stroke-width="3.5"/>
+                    <rect x="11" y="11" width="14" height="14" rx="1.5" fill="#0f172a"/>
+                    <rect x="69" y="5" width="26" height="26" rx="3" fill="none" stroke="#0f172a" stroke-width="3.5"/>
+                    <rect x="75" y="11" width="14" height="14" rx="1.5" fill="#0f172a"/>
+                    <rect x="5" y="69" width="26" height="26" rx="3" fill="none" stroke="#0f172a" stroke-width="3.5"/>
+                    <rect x="11" y="75" width="14" height="14" rx="1.5" fill="#0f172a"/>
+                    <!-- Data dots -->
+                    <rect x="38" y="5"  width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="46" y="5"  width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="54" y="5"  width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="38" y="13" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="54" y="13" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="38" y="21" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="46" y="21" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="5"  y="38" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="13" y="38" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="5"  y="46" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="21" y="46" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="5"  y="54" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="13" y="54" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="38" y="38" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="46" y="38" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="54" y="38" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="62" y="38" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="38" y="46" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="54" y="46" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="62" y="46" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="38" y="54" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="46" y="54" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="69" y="38" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="77" y="38" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="85" y="38" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="69" y="46" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="85" y="46" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="77" y="54" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="85" y="54" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="38" y="62" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="54" y="62" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="62" y="62" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="38" y="69" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="46" y="69" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="62" y="69" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="38" y="77" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="54" y="77" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="62" y="77" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="38" y="85" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="46" y="85" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="54" y="85" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="69" y="62" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="77" y="62" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="85" y="62" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="69" y="77" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="85" y="77" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="69" y="85" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="77" y="85" width="5" height="5" rx="1" fill="#0f172a"/>
+                    <rect x="85" y="85" width="5" height="5" rx="1" fill="#0f172a"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <p class="text-center text-xs text-slate-400">Нийт төлбөр: <strong class="text-slate-700">3,699 ₮</strong></p>
+          </div>
+
+          <!-- Bank Transfer Panel (hidden initially) -->
+          <div id="panel-bank" class="hidden-section">
+            <p class="text-xs text-slate-500 text-center mb-4 leading-relaxed">
+              Хэрэв QR код ажиллахгүй бол дараах данс руу шилжүүлэг хийнэ үү.
+            </p>
+
+            <div class="space-y-2">
+              <!-- Bank info rows -->
+              <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div>
+                  <p class="text-xs text-slate-400 mb-0.5">Банк</p>
+                  <p class="text-xs font-semibold text-slate-700">Худалдаа Хөгжлийн Банк</p>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div>
+                  <p class="text-xs text-slate-400 mb-0.5">Дансны дугаар</p>
+                  <p class="text-xs font-semibold text-slate-700 font-mono">MN520004000470123103</p>
+                </div>
+                <button class="copy-btn px-2.5 py-1.5 rounded-lg text-xs text-slate-500 font-medium"
+                        onclick="copyText('MN520004000470123103', this)">
+                  <i class="fa-regular fa-copy mr-1"></i>Хуулах
+                </button>
+              </div>
+
+              <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div>
+                  <p class="text-xs text-slate-400 mb-0.5">Хүлээн авагч</p>
+                  <p class="text-xs font-semibold text-slate-700">Н.Эрдэнэсувд</p>
+                </div>
+              </div>
+
+              <!-- Transaction reference — dynamic email -->
+              <div class="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs text-slate-400 mb-0.5">Гүйлгээний утга</p>
+                  <p id="transfer-ref" class="text-xs font-semibold text-white font-mono truncate">—</p>
+                </div>
+                <button class="ml-2 copy-btn px-2.5 py-1.5 rounded-lg text-xs text-slate-400 font-medium flex-shrink-0"
+                        onclick="copyTransferRef(this)">
+                  <i class="fa-regular fa-copy mr-1"></i>Хуулах
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-3 flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-100">
+              <i class="fa-solid fa-triangle-exclamation text-amber-400 text-xs mt-0.5 flex-shrink-0"></i>
+              <p class="text-xs text-amber-700 leading-relaxed">
+                Гүйлгээний утгыг заавал дээрх байдлаар оруулна уу — өөрчилж болохгүй!
+              </p>
+            </div>
+
+            <p class="text-center text-xs text-slate-400 mt-3">Нийт төлбөр: <strong class="text-slate-700">3,699 ₮</strong></p>
+          </div>
+
+          <!-- Check payment test button -->
+          <div class="mt-4 pt-4 border-t border-slate-100">
+            <button id="check-pay-btn" type="button"
+                    class="w-full py-3 rounded-xl text-xs font-semibold text-slate-500 border border-slate-200 flex items-center justify-center gap-2 transition-all hover:border-slate-300 hover:text-slate-700">
+              <i class="fa-solid fa-rotate"></i>
+              Төлбөр төлөлтийг шалгах (Тест)
+            </button>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Success card (hidden until confirmed) -->
+      <div id="success-card" class="hidden-section bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden fade-up">
+        <div class="p-6 text-center">
+          <div class="success-icon w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-200">
+            <i class="fa-solid fa-check text-white text-xl"></i>
+          </div>
+          <h3 class="font-display text-xl text-slate-900 mb-2">Амжилттай!</h3>
+          <p class="text-sm text-slate-500 leading-relaxed mb-4">
+            Төлбөр амжилттай баталгаажлаа!<br />
+            Зургийг таны
+            <span id="confirmed-email" class="font-semibold text-slate-700"></span>
+            имэйл рүү илгээлээ.
+          </p>
+
+          <!-- Checklist -->
+          <div class="text-left space-y-2 mb-5 p-4 rounded-xl bg-slate-50 border border-slate-100">
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Захиалга агуулсан зүйлс</p>
+            <div class="flex items-center gap-2 text-xs text-slate-600">
+              <i class="fa-solid fa-circle-check text-emerald-500 w-4"></i>
+              Усан хээгүй өндөр чанарын зураг
+            </div>
+            <div class="flex items-center gap-2 text-xs text-slate-600">
+              <i class="fa-solid fa-circle-check text-emerald-500 w-4"></i>
+              Зөв хэмжээ ба 300 DPI (хэвлэхэд бэлэн)
+            </div>
+            <div class="flex items-center gap-2 text-xs text-slate-600">
+              <i class="fa-solid fa-circle-check text-emerald-500 w-4"></i>
+              Цагаан дэвсгэр — ICAO стандарт
+            </div>
+          </div>
+
+          <button id="new-order-btn" type="button"
+                  class="btn-primary w-full py-3 rounded-xl text-sm font-semibold">
+            <i class="fa-solid fa-plus mr-2"></i>Дахин захиалах
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /step3-section -->
+
+
+    <!-- Footer -->
+    <footer class="text-center pt-2">
+      <p class="text-xs text-slate-400">
+        © 2025 IDzurag · idzurag.mn<br />
+        <a href="mailto:info@idzurag.mn"
+           class="underline decoration-dotted hover:text-slate-600 transition-colors">
+          info@idzurag.mn
+        </a>
+      </p>
+    </footer>
+
+  </main>
+
+
+  <!-- =====================================================
+       TOAST
+  ===================================================== -->
+  <div id="toast" role="alert" aria-live="polite">
+    <div id="toast-inner"
+         class="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold shadow-xl"
+         style="min-width: 220px;">
+      <i id="toast-icon" class="fa-solid fa-circle-exclamation flex-shrink-0"></i>
+      <span id="toast-msg"></span>
+    </div>
+  </div>
+
+
+  <!-- =====================================================
+       JAVASCRIPT
+  ===================================================== -->
+  <script>
+    /*
+     * =========================================================
+     * CONFIGURATION
+     * =========================================================
+     *
+     * MAKE_WEBHOOK_URL:
+     *   Make.com → Scenarios → Webhooks → Custom webhook → URL-г энд оруулна уу.
+     *
+     * PAYMENT_STATUS_WEBHOOK_URL:
+     *   Төлбөр шалгах webhook URL. Хоосон орхивол mock горим ажиллана.
+     * ========================================================= */
+    const MAKE_WEBHOOK_URL           = '/.netlify/functions/process-photo';
+    const PAYMENT_STATUS_WEBHOOK_URL = '';
+    const PAYMENT_POLL_INTERVAL_MS   = 5000;
+    const PAYMENT_POLL_MAX_ATTEMPTS  = 36;
+
+    /*
+     * Photo type specs — 300 DPI print-quality dimensions.
+     * Sent to Make.com so the backend knows what size to produce.
+     */
+    const PHOTO_SPECS = {
+      passport_35x45: {
+        label:       'Гадаад паспорт',
+        physical:    '35 × 45мм',
+        pixels:      '413 × 531px',
+        aspectRatio: '7:9',
+        faceRatio:   '70–80%',
+        width:       413,
+        height:      531,
+      },
+      resume_3x4: {
+        label:       'Анкет / Ажлын үнэмлэх',
+        physical:    '30 × 40мм (3×4см)',
+        pixels:      '354 × 472px',
+        aspectRatio: '3:4',
+        faceRatio:   'Голд',
+        width:       354,
+        height:      472,
+      },
+      student_4x6: {
+        label:       'Оюутны үнэмлэх',
+        physical:    '40 × 60мм (4×6см)',
+        pixels:      '472 × 709px',
+        aspectRatio: '2:3',
+        faceRatio:   'Голд, мөр харагдана',
+        width:       472,
+        height:      709,
+      },
+    };
+
+
+    /* == Element refs == */
+    const uploadZone        = document.getElementById('upload-zone');
+    const fileInput         = document.getElementById('file-input');
+    const uploadDefault     = document.getElementById('upload-default');
+    const uploadPreview     = document.getElementById('upload-preview');
+    const thumbImg          = document.getElementById('thumb-img');
+    const thumbName         = document.getElementById('thumb-name');
+    const thumbSize         = document.getElementById('thumb-size');
+    const emailInput        = document.getElementById('email-input');
+    const sizeSelect        = document.getElementById('size-select');
+    const specBadge         = document.getElementById('spec-badge');
+    const specText          = document.getElementById('spec-text');
+    const submitBtn         = document.getElementById('submit-btn');
+    const loadingOverlay    = document.getElementById('loading-overlay');
+    const loadingStatusEl   = document.getElementById('loading-status');
+    const step3Section      = document.getElementById('step3-section');
+    const previewPlaceholder= document.getElementById('preview-placeholder');
+    const processedImg      = document.getElementById('processed-img');
+    const qrImgWrap         = document.getElementById('qr-img-wrap');
+    const transferRef       = document.getElementById('transfer-ref');
+    const checkPayBtn       = document.getElementById('check-pay-btn');
+    const successCard       = document.getElementById('success-card');
+    const confirmedEmailEl  = document.getElementById('confirmed-email');
+    const newOrderBtn       = document.getElementById('new-order-btn');
+    const tabQr             = document.getElementById('tab-qr');
+    const tabBank           = document.getElementById('tab-bank');
+    const panelQr           = document.getElementById('panel-qr');
+    const panelBank         = document.getElementById('panel-bank');
+
+    /* == State == */
+    let selectedFile   = null;
+    let currentEmail   = '';
+    let countdownTimer = null;
+    let pollTimer      = null;
+
+
+    /* =========================================================
+     * UTILITIES
+     * ========================================================= */
+    const show = el => el.classList.remove('hidden-section');
+    const hide = el => el.classList.add('hidden-section');
+
+    function fmtBytes(b) {
+      return b < 1048576 ? (b / 1024).toFixed(1) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
+    }
+
+    function showToast(msg, type = 'error') {
+      const map = {
+        error:   { bg: '#ef4444', icon: 'fa-circle-exclamation' },
+        success: { bg: '#10b981', icon: 'fa-circle-check'       },
+        info:    { bg: '#0f172a', icon: 'fa-circle-info'        },
+      };
+      const s = map[type] || map.error;
+      document.getElementById('toast-inner').style.background = s.bg;
+      document.getElementById('toast-inner').style.color = '#fff';
+      document.getElementById('toast-icon').className = `fa-solid ${s.icon} flex-shrink-0`;
+      document.getElementById('toast-msg').textContent = msg;
+      const t = document.getElementById('toast');
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 4000);
+    }
+
+    function toBase64(file) {
+      return new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload  = () => res(r.result);
+        r.onerror = () => rej(new Error('Файл уншихад алдаа гарлаа.'));
+        r.readAsDataURL(file);
+      });
+    }
+
+    const stripPrefix = url => url.split(',')[1];
+
+    function setLoadingStatus(html) {
+      if (loadingStatusEl) loadingStatusEl.innerHTML = html;
+    }
+
+    /* Copy to clipboard */
+    async function copyText(text, btn) {
+      try {
+        await navigator.clipboard.writeText(text);
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-check mr-1 text-emerald-500"></i>Хуулагдлаа';
+        setTimeout(() => { btn.innerHTML = orig; }, 2000);
+      } catch { showToast('Хуулах боломжгүй байна.', 'error'); }
+    }
+
+    function copyTransferRef(btn) {
+      copyText(transferRef.textContent, btn);
+    }
+
+
+    /* =========================================================
+     * PAYMENT TABS
+     * ========================================================= */
+    tabQr.addEventListener('click', () => {
+      tabQr.classList.add('active');
+      tabBank.classList.remove('active');
+      show(panelQr);
+      hide(panelBank);
+    });
+    tabBank.addEventListener('click', () => {
+      tabBank.classList.add('active');
+      tabQr.classList.remove('active');
+      show(panelBank);
+      hide(panelQr);
+    });
+
+
+    /* =========================================================
+     * SIZE DROPDOWN — spec badge update
+     * ========================================================= */
+    sizeSelect.addEventListener('change', () => {
+      const spec = PHOTO_SPECS[sizeSelect.value];
+      if (spec) {
+        specText.textContent = `${spec.physical} · ${spec.pixels} · ${spec.aspectRatio}`;
+        show(specBadge);
+      } else {
+        hide(specBadge);
+      }
+    });
+
+
+    /* =========================================================
+     * FILE SELECTION
+     * ========================================================= */
+    function handleFile(file) {
+      if (!file) return;
+      if (!['image/jpeg', 'image/png'].includes(file.type)) {
+        showToast('Зөвхөн .jpg эсвэл .png файл оруулна уу.', 'error');
+        return;
+      }
+      if (file.size > 15 * 1024 * 1024) {
+        showToast('Зургийн хэмжээ 15 MB-аас бага байх ёстой.', 'error');
+        return;
+      }
+      selectedFile = file;
+      thumbImg.src = URL.createObjectURL(file);
+      thumbName.textContent = file.name;
+      thumbSize.textContent = fmtBytes(file.size);
+      hide(uploadDefault);
+      show(uploadPreview);
+    }
+
+    function removePhoto(e) {
+      if (e) e.stopPropagation();
+      selectedFile = null;
+      fileInput.value = '';
+      thumbImg.src = '';
+      hide(uploadPreview);
+      show(uploadDefault);
+    }
+
+    /* Click zone → OS native picker (NO capture attr — shows Gallery + Camera) */
+    uploadZone.addEventListener('click', e => {
+      if (e.target.closest('#remove-btn')) return;
+      fileInput.click();
+    });
+
+    document.getElementById('remove-btn').addEventListener('click', removePhoto);
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files?.[0]) handleFile(fileInput.files[0]);
+    });
+
+    uploadZone.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+    });
+
+    uploadZone.addEventListener('dragover',  e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+    uploadZone.addEventListener('drop', e => {
+      e.preventDefault();
+      uploadZone.classList.remove('drag-over');
+      handleFile(e.dataTransfer.files[0]);
+    });
+
+
+    /* =========================================================
+     * FORM SUBMIT → MAKE.COM WEBHOOK
+     *
+     * Payload (JSON):
+     *   {
+     *     image:     "<Base64 string>",
+     *     email:     "user@example.com",
+     *     photoType: "passport_35x45",
+     *     specs: {
+     *       width:       413,
+     *       height:      531,
+     *       aspectRatio: "7:9",
+     *       physical:    "35 × 45мм",
+     *       faceRatio:   "70–80%"
+     *     }
+     *   }
+     *
+     * Expected response from Make.com Webhook Response module:
+     *   {
+     *     "watermarkedImageUrl": "https://...",
+     *     "paymentQrUrl":        "https://...",
+     *     "orderId":             "ORD-001"
+     *   }
+     * ========================================================= */
+    submitBtn.addEventListener('click', async () => {
+
+      const email     = emailInput.value.trim();
+      const photoType = sizeSelect.value;
+
+      if (!selectedFile) {
+        showToast('Уучлаарай, та зургаа оруулна уу.', 'error');
+        return;
+      }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showToast('Зөв имэйл хаяг оруулна уу.', 'error');
+        return;
+      }
+      if (!photoType) {
+        showToast('Зургийн хэмжээгээ сонгоно уу.', 'error');
+        return;
+      }
+
+      currentEmail = email;
+      transferRef.textContent = email; // bank transfer reference = email
+
+      show(loadingOverlay);
+      document.body.style.overflow = 'hidden';
+      submitBtn.disabled = true;
+      setLoadingStatus('Зургийг кодлож байна…<br />Түр хүлээнэ үү.');
+
+      try {
+        const dataUrl    = await toBase64(selectedFile);
+        const base64Data = stripPrefix(dataUrl);
+
+        setLoadingStatus('AI таны зургийг боловсруулж байна...<br />Түр хүлээнэ үү.');
+
+        const spec = PHOTO_SPECS[photoType];
+
+        const payload = {
+          image:     base64Data,
+          email,
+          photoType,
+          specs: {
+            width:       spec.width,
+            height:      spec.height,
+            aspectRatio: spec.aspectRatio,
+            physical:    spec.physical,
+            faceRatio:   spec.faceRatio,
+          },
+        };
+
+        const response = await fetch(MAKE_WEBHOOK_URL, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify(payload),
+        });
+
+        if (!response.ok) throw new Error(`Серверийн алдаа: ${response.status}`);
+
+        let data = {};
+        const ct = response.headers.get('content-type') || '';
+        if (ct.includes('application/json')) data = await response.json();
+
+        onWebhookSuccess(data, email);
+
+      } catch (err) {
+        hide(loadingOverlay);
+        document.body.style.overflow = '';
+        submitBtn.disabled = false;
+        console.error('Webhook error:', err);
+
+        const isNet = err.message.includes('Failed to fetch') || err.message.includes('NetworkError');
+        showToast(
+          isNet
+            ? 'Сүлжээний алдаа. Интернэт холболтоо шалгаад дахин оролдоно уу.'
+            : 'Алдаа гарлаа. Түр хүлээгээд дахин оролдоно уу.',
+          'error'
+        );
+      }
+    });
+
+
+    /* =========================================================
+     * WEBHOOK SUCCESS → POPULATE STEP 3
+     * ========================================================= */
+    function onWebhookSuccess(data, email) {
+      hide(loadingOverlay);
+      document.body.style.overflow = '';
+      submitBtn.disabled = false;
+
+      /* Watermarked preview */
+      if (data.watermarkedImageUrl) {
+        processedImg.src = data.watermarkedImageUrl;
+        processedImg.onload  = () => { hide(previewPlaceholder); show(processedImg); };
+        processedImg.onerror = () => console.warn('Preview ачаалах боломжгүй.');
+      }
+
+      /* QPay QR image */
+      if (data.paymentQrUrl) {
+        qrImgWrap.innerHTML = `
+          <img src="${data.paymentQrUrl}"
+               alt="QPay QR код"
+               style="width:156px;height:156px;object-fit:contain;border-radius:8px;" />
+        `;
+      }
+
+      /* Bank transfer ref */
+      transferRef.textContent = email;
+      confirmedEmailEl.textContent = email;
+
+      show(step3Section);
+      step3Section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      startPolling(data.orderId || null, email);
+    }
+
+
+    /* =========================================================
+     * PAYMENT POLLING
+     * ========================================================= */
+    function startPolling(orderId, email) {
+      stopPolling();
+      let attempts = 0;
+
+      pollTimer = setInterval(async () => {
+        attempts++;
+        if (attempts > PAYMENT_POLL_MAX_ATTEMPTS) { stopPolling(); return; }
+
+        /* MOCK: confirm after 3rd poll (~15s) when no status URL set */
+        if (!PAYMENT_STATUS_WEBHOOK_URL) {
+          if (attempts === 3) { stopPolling(); confirmPayment(email); }
+          return;
+        }
+
+        /* REAL polling */
+        try {
+          const res  = await fetch(PAYMENT_STATUS_WEBHOOK_URL, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ orderId }),
+          });
+          const data = await res.json();
+          if (data.paid === true) { stopPolling(); confirmPayment(email); }
+        } catch (e) {
+          console.warn('Poll амжилтгүй:', e);
+        }
+      }, PAYMENT_POLL_INTERVAL_MS);
+    }
+
+    function stopPolling() {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    }
+
+
+    /* =========================================================
+     * TEST BUTTON
+     * ========================================================= */
+    checkPayBtn.addEventListener('click', () => {
+      checkPayBtn.disabled = true;
+      checkPayBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Шалгаж байна…';
+      setTimeout(() => { stopPolling(); confirmPayment(currentEmail); }, 1500);
+    });
+
+
+    /* =========================================================
+     * PAYMENT CONFIRMED
+     * ========================================================= */
+    function confirmPayment(email) {
+      stopPolling();
+      if (email) confirmedEmailEl.textContent = email;
+      show(successCard);
+      successCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showToast('Төлбөр амжилттай баталгаажлаа!', 'success');
+    }
+
+
+    /* =========================================================
+     * NEW ORDER — RESET
+     * ========================================================= */
+    newOrderBtn.addEventListener('click', () => {
+      stopPolling();
+
+      emailInput.value = '';
+      sizeSelect.selectedIndex = 0;
+      hide(specBadge);
+      removePhoto(null);
+
+      processedImg.src = '';
+      hide(processedImg);
+      show(previewPlaceholder);
+
+      /* Restore mock QR */
+      qrImgWrap.innerHTML = `
+        <svg viewBox="0 0 100 100" width="156" height="156" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100" height="100" fill="white"/>
+          <rect x="5" y="5" width="26" height="26" rx="3" fill="none" stroke="#0f172a" stroke-width="3.5"/>
+          <rect x="11" y="11" width="14" height="14" rx="1.5" fill="#0f172a"/>
+          <rect x="69" y="5" width="26" height="26" rx="3" fill="none" stroke="#0f172a" stroke-width="3.5"/>
+          <rect x="75" y="11" width="14" height="14" rx="1.5" fill="#0f172a"/>
+          <rect x="5" y="69" width="26" height="26" rx="3" fill="none" stroke="#0f172a" stroke-width="3.5"/>
+          <rect x="11" y="75" width="14" height="14" rx="1.5" fill="#0f172a"/>
+          <rect x="38" y="5" width="5" height="5" rx="1" fill="#0f172a"/>
+          <rect x="46" y="5" width="5" height="5" rx="1" fill="#0f172a"/>
+          <rect x="38" y="38" width="5" height="5" rx="1" fill="#0f172a"/>
+          <rect x="46" y="46" width="5" height="5" rx="1" fill="#0f172a"/>
+          <rect x="69" y="38" width="5" height="5" rx="1" fill="#0f172a"/>
+          <rect x="77" y="54" width="5" height="5" rx="1" fill="#0f172a"/>
+        </svg>`;
+
+      transferRef.textContent = '—';
+
+      /* Reset tabs */
+      tabQr.classList.add('active');
+      tabBank.classList.remove('active');
+      show(panelQr);
+      hide(panelBank);
+
+      checkPayBtn.disabled = false;
+      checkPayBtn.innerHTML = '<i class="fa-solid fa-rotate mr-2"></i>Төлбөр төлөлтийг шалгах (Тест)';
+
+      hide(successCard);
+      hide(step3Section);
+      submitBtn.disabled = false;
+      currentEmail = '';
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+  </script>
+
+</body>
+</html>
