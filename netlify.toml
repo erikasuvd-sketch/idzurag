@@ -4,8 +4,3 @@
 [functions]
   directory = "netlify/functions"
   python_runtime = "3.11"
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
